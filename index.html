@@ -32,7 +32,7 @@ button{flex:1;font:inherit;font-size:15px;color:var(--ink);background:#16242F;bo
 <body>
 <div id="app">
 <div id="mapwrap"><div id="map"></div>
-<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button></div></div>
+<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button><button id="demo">模擬</button></div></div>
 <div id="panel">
 <div id="grid">
 <div><div class="lab">時速</div><div class="val" id="spd">--<small>km/h</small></div></div>
@@ -50,7 +50,7 @@ const LAT0=24,KX=111320*Math.cos(LAT0*Math.PI/180),KY=110574;
 const proj=(la,lo)=>[(lo-120.9)*KX,(la-LAT0)*KY];
 for(let i=0;i<n;i++){CH[i]=D[3*i];LA[i]=D[3*i+1];LO[i]=D[3*i+2];[X[i],Y[i]]=proj(LA[i],LO[i])}
 const $=id=>document.getElementById(id);
-const fmt=ch=>{const a=Math.abs(Math.round(ch/10)*10);return(ch<0?'−':'')+'K'+Math.floor(a/1000)+'+'+String(a%1000).padStart(3,'0')};
+const fmt=ch=>{const a=Math.abs(Math.round(ch));return(ch<0?'−':'')+'K'+Math.floor(a/1000)+'+'+String(a%1000).padStart(3,'0')};
 
 const nlsc=L.tileLayer('https://wmts.nlsc.gov.tw/wmts/EMAP5_OPENDATA/default/GoogleMapsCompatible/{z}/{y}/{x}',{maxZoom:19,attribution:'© 內政部國土測繪中心'});
 const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
@@ -66,7 +66,7 @@ const me=L.circleMarker([0,0],{radius:8,color:'#fff',weight:3,fillColor:'#1763E6
 const acc=L.circle([0,0],{radius:1,color:'#1763E6',weight:1,fillOpacity:.12});
 const snap=L.circleMarker([0,0],{radius:6,color:'#fff',weight:2,fillColor:'#E4661F',fillOpacity:1});
 
-let lastIdx=-1,prev=null,sp=null,lastRecv=0,follow=true,wl=null,first=true;
+let lastIdx=-1,prev=null,sp=null,lastRecv=0,follow=true,wl=null,first=true,watchId=null;
 function nearest(px,py){
  let lo=0,hi=n-2;if(lastIdx>=0){lo=Math.max(0,lastIdx-80);hi=Math.min(n-2,lastIdx+80)}
  let best=null;
@@ -76,32 +76,53 @@ function nearest(px,py){
   if(pass===0&&best.d>1500&&(lo>0||hi<n-2)){lo=0;hi=n-2;best=null}else break}
  return best}
 const tick=()=>{$('tm').textContent=new Date().toLocaleTimeString('en-GB',{hour12:false,timeZone:'UTC'})};tick();setInterval(tick,1000);
+const sm={base:null,t0:0,rate:0,corr:0,lastCh:null,lastTs:0};
+function disp(now){const dt=(now-sm.t0)/1000;return sm.base+sm.rate*Math.min(dt,2)+sm.corr*Math.exp(-dt/.6)}
+function fix(ch,ts){const now=performance.now();
+ if(sm.lastCh!=null&&Math.abs(ch-sm.lastCh)>3000){sm.base=null;sm.rate=0;sm.lastCh=null}
+ const shown=sm.base==null?ch:disp(now);
+ if(sm.lastCh!=null&&ts>sm.lastTs){const r=(ch-sm.lastCh)/((ts-sm.lastTs)/1000);if(Math.abs(r)<150)sm.rate=sm.rate*.5+r*.5}
+ sm.corr=shown-ch;sm.base=ch;sm.t0=now;sm.lastCh=ch;sm.lastTs=ts}
+let lastTxt='';(function loop(){if(sm.base!=null){const s=fmt(disp(performance.now()));if(s!==lastTxt){lastTxt=s;$('mil').textContent=s}}requestAnimationFrame(loop)})();
+const demo={on:false,run:false,ch:0,t:0,timer:null};
+const simKmh=s=>{const P=240,h=P/2,m=s%P;return 100+200*(m<h?m/h:(P-m)/h)};
+function simTick(){const v=simKmh(demo.t)/3.6;demo.ch+=v;demo.t+=1;
+ if(demo.ch>=CH[n-1]){demo.ch=CH[0];prev=null;lastIdx=-1;sm.base=null;sm.rate=0;sm.lastCh=null}
+ const i=seg(demo.ch),f=(demo.ch-CH[i])/(CH[i+1]-CH[i]);
+ update(LA[i]+(LA[i+1]-LA[i])*f,LO[i]+(LO[i+1]-LO[i])*f,5,v,Date.now())}
+function setDemoBtn(){$('demo').textContent=!demo.on?'模擬':demo.run?'暫停模擬':'繼續模擬'}
+function toggleDemo(){
+ if(!demo.on){demo.on=true;demo.ch=sm.lastCh!=null?sm.lastCh:100000;demo.t=0;prev=null;sp=null}
+ if(demo.run){clearInterval(demo.timer);demo.run=false;sm.rate=0}else{demo.run=true;simTick();demo.timer=setInterval(simTick,1000)}
+ setDemoBtn()}
+function stopDemo(){if(demo.timer)clearInterval(demo.timer);demo.on=false;demo.run=false;setDemoBtn()}
 function update(la,lo,accu,speed,ts){
  lastRecv=Date.now();const [x,y]=proj(la,lo),q=nearest(x,y);lastIdx=q.i;
  let v=speed;
  if(v==null||isNaN(v)){if(prev&&ts>prev.ts){const d=Math.hypot(x-prev.x,y-prev.y)/((ts-prev.ts)/1000);sp=sp==null?d:sp*.5+d*.5;v=sp}else v=null}
  prev={x,y,ts};
  $('spd').innerHTML=(v==null?'--':Math.round(v*3.6))+'<small>km/h</small>';
- $('mil').textContent=fmt(q.ch);
+ fix(q.ch,ts);
  const ll=[la,lo];me.setLatLng(ll);acc.setLatLng(ll).setRadius(accu||1);snap.setLatLng([q.la,q.lo]);
  if(!map.hasLayer(me)){acc.addTo(map);snap.addTo(map);me.addTo(map)}
  if(first){map.setView(ll,16);first=false}else if(follow)map.panTo(ll,{animate:false});
  $('s2').textContent='距中心線 '+(q.d<1000?Math.round(q.d)+' m':(q.d/1000).toFixed(1)+' km')+'　誤差 ±'+Math.round(accu||0)+' m'}
 function start(){
  $('go').textContent='定位中';
- if(location.search.includes('demo')){let ch=100000;setInterval(()=>{ch+=83.3;const i=seg(ch),t=(ch-CH[i])/(CH[i+1]-CH[i]);update(LA[i]+(LA[i+1]-LA[i])*t,LO[i]+(LO[i+1]-LO[i])*t,5,83.3,Date.now())},1000);return}
+ stopDemo();
  if(!navigator.geolocation){$('s1').textContent='此瀏覽器不支援定位';return}
- navigator.geolocation.watchPosition(p=>update(p.coords.latitude,p.coords.longitude,p.coords.accuracy,p.coords.speed,p.timestamp),
+ if(watchId!=null)navigator.geolocation.clearWatch(watchId);
+ watchId=navigator.geolocation.watchPosition(p=>{if(!demo.on)update(p.coords.latitude,p.coords.longitude,p.coords.accuracy,p.coords.speed,p.timestamp)},
   e=>{$('s1').innerHTML='<span class="bad">'+(e.code===1?'定位權限被拒絕，請在瀏覽器設定允許位置':'無法取得位置')+'</span>'},{enableHighAccuracy:true,maximumAge:0,timeout:20000});
  getWL()}
 function seg(ch){let lo=0,hi=n-2;while(lo<hi){const m=(lo+hi+1)>>1;if(CH[m]<=ch)lo=m;else hi=m-1}return lo}
 async function getWL(){try{if('wakeLock' in navigator)wl=await navigator.wakeLock.request('screen')}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&lastRecv)getWL()});
 setInterval(()=>{if(!lastRecv)return;const s=Math.round((Date.now()-lastRecv)/1000);
- $('s1').innerHTML=s>5?'<span class="bad">GPS 訊號中斷 '+s+' 秒</span>':'<span class="ok">GPS 正常</span>'},1000);
+ $('s1').innerHTML=demo.on?'<span class="ok">模擬模式'+(demo.run?'':'（已暫停）')+'</span>':s>5?'<span class="bad">GPS 訊號中斷 '+s+' 秒</span>':'<span class="ok">GPS 正常</span>'},1000);
 map.on('dragstart',()=>{follow=false;$('fol').textContent='跟隨：關'});
 $('fol').onclick=()=>{follow=!follow;$('fol').textContent='跟隨：'+(follow?'開':'關');if(follow&&me.getLatLng().lat)map.panTo(me.getLatLng())};
-$('go').onclick=start;
+$('go').onclick=start;$('demo').onclick=toggleDemo;if(location.search.includes('demo'))toggleDemo();
 }catch(e){document.getElementById('s1').textContent='載入里程資料失敗，請確認 hsr-data.json 已和 index.html 一起上傳'}})();
 </script>
 </body>
