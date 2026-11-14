@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>THSR Runing Tracker</title>
+<title>高鐵里程定位</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <style>
 :root{--bg:#0F1A23;--ink:#F1F5F8;--mute:#93A5B3;--hsr:#FF8B4F;--ok:#4ADE80;--bad:#FF6B6B;--rule:#2A3B48;color-scheme:dark}
@@ -132,12 +132,27 @@ function setPanel(){$('dpanel').hidden=!demo.on;$('dN').setAttribute('aria-press
 function enterDemo(){if(demo.on)return;const c=sm.lastCh!=null?sm.lastCh:100000;demo.on=true;simReset(c);simEmit(0);setDemoBtn();setPanel()}
 function toggleDemo(){if(!demo.on)enterDemo();else setRun(!demo.run)}
 function stopDemo(){if(demo.run)setRun(false);demo.on=false;setDemoBtn();setPanel()}
+const MAXOFF=200,MAXKMH=350;
+let badMsg='',frozen=false;
+function freeze(){if(frozen)return;const now=performance.now();
+ if(sm.base!=null){sm.base=disp(now);sm.rate=0;sm.corr=0;sm.t0=now}
+ if(ps.base){const[px,py]=pdisp(now);ps.bx=px;ps.by=py;ps.vx=0;ps.vy=0;ps.cx=0;ps.cy=0;ps.t0=now}
+ frozen=true}
+function resetSmooth(){sm.base=null;sm.rate=0;sm.lastCh=null;ps.base=false;ps.vx=0;ps.vy=0;prev=null;sp=null;lastIdx=-1}
 function update(la,lo,accu,speed,ts){
- lastRecv=Date.now();const [x,y]=proj(la,lo),q=nearest(x,y);lastIdx=q.i;
- let v=speed;
- if(v==null||isNaN(v)){if(prev&&ts>prev.ts){const d=Math.hypot(x-prev.x,y-prev.y)/((ts-prev.ts)/1000);sp=sp==null?d:sp*.5+d*.5;v=sp}else v=null}
+ const [x,y]=proj(la,lo),q=nearest(x,y);
+ let v=(speed==null||isNaN(speed))?null:speed,cand=null;
+ if(v==null&&prev&&ts>prev.ts){const d=Math.hypot(x-prev.x,y-prev.y)/((ts-prev.ts)/1000);cand=sp==null?d:sp*.5+d*.5;v=cand}
+ const kmh=v==null?0:v*3.6;
+ if(q.d>MAXOFF||kmh>MAXKMH){
+  badMsg='定位無效：'+(q.d>MAXOFF?'偏離中心線 '+Math.round(q.d)+' m':'速度 '+Math.round(kmh)+' km/h')+'，維持上次有效資料';
+  $('s1').innerHTML='<span class="bad">'+badMsg+'</span>';freeze();return}
+ if(badMsg){badMsg='';$('s1').innerHTML='<span class="ok">GPS 正常</span>'}
+ if(frozen){frozen=false;resetSmooth();v=(speed==null||isNaN(speed))?null:speed;cand=null}
+ lastRecv=Date.now();lastIdx=q.i;
+ if(cand!=null)sp=cand;
  prev={x,y,ts};
- $('spd').innerHTML=(v==null?'--':Math.round(v*3.6))+'<small>km/h</small>';
+ if(v!=null)$('spd').innerHTML=Math.round(v*3.6)+'<small>km/h</small>';
  fix(q.ch,ts);posFix(x,y,ts);
  const ll=[la,lo];me.setLatLng(ll);acc.setLatLng(ll).setRadius(accu||1);snap.setLatLng([q.la,q.lo]);
  if(!map.hasLayer(me)){acc.addTo(map);snap.addTo(map);me.addTo(map)}
@@ -154,8 +169,11 @@ function start(){
 function seg(ch){let lo=0,hi=n-2;while(lo<hi){const m=(lo+hi+1)>>1;if(CH[m]<=ch)lo=m;else hi=m-1}return lo}
 async function getWL(){try{if('wakeLock' in navigator)wl=await navigator.wakeLock.request('screen')}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&lastRecv)getWL()});
-setInterval(()=>{if(!lastRecv)return;const s=Math.round((Date.now()-lastRecv)/1000);
- $('s1').innerHTML=demo.on?'<span class="ok">模擬模式'+(demo.run?'':'（已暫停）')+'</span>':s>5?'<span class="bad">GPS 訊號中斷 '+s+' 秒</span>':'<span class="ok">GPS 正常</span>'},1000);
+setInterval(()=>{
+ if(demo.on){if(lastRecv)$('s1').innerHTML='<span class="ok">模擬模式'+(demo.run?'':'（已暫停）')+'</span>';return}
+ if(badMsg){$('s1').innerHTML='<span class="bad">'+badMsg+'</span>';return}
+ if(!lastRecv)return;const s=Math.round((Date.now()-lastRecv)/1000);
+ $('s1').innerHTML=s>5?'<span class="bad">GPS 訊號中斷 '+s+' 秒，維持上次有效資料</span>':'<span class="ok">GPS 正常</span>'},1000);
 map.on('dragstart',()=>{follow=false;$('fol').textContent='跟隨：關'});
 $('fol').onclick=()=>{follow=!follow;$('fol').textContent='跟隨：'+(follow?'開':'關');if(follow&&me.getLatLng().lat)map.panTo(me.getLatLng())};
 $('go').onclick=start;function openG(){if(!ps.base){$('s1').innerHTML='<span class="bad">尚未取得位置，請先按「定位」</span>';return}
