@@ -39,18 +39,18 @@ button{flex:1;font:inherit;font-size:15px;color:var(--ink);background:#16242F;bo
 <body>
 <div id="app">
 <div id="mapwrap"><div id="map"></div>
-<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button><button id="gmap">地圖</button><button id="sv">街景</button><button id="demo">模擬</button></div>
+<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button><button id="gmap">Google Map</button><button id="demo">Demo Run</button></div>
 <div id="dpanel" hidden>
 <div class="drow"><button id="dN">往北</button><button id="dS">往南</button></div>
 <div class="drow"><button id="dm">−</button><span id="dv">120 km/h</span><button id="dp">＋</button></div>
 <div id="dh"></div>
-<button id="dx" style="width:100%">結束模擬</button>
+<div class="drow"><button id="dr">開始</button><button id="dx">結束模擬</button></div>
 </div></div>
 <div id="panel">
 <div id="grid">
 <div><div class="lab">時速</div><div class="val" id="spd">--<small>km/h</small></div></div>
 <div><div class="lab">現在里程</div><div class="val" id="mil">--</div></div>
-<div style="grid-column:1/3"><div class="lab" id="tlab">UTC 時間</div><div class="val" id="tm">--:--:--</div></div>
+<div style="grid-column:1/3"><div class="lab" id="tlab">本地時間</div><div class="val" id="tm">--:--:--</div></div>
 </div>
 <div id="st"><span id="s1">尚未開始</span><span id="s2"></span></div>
 </div>
@@ -95,7 +95,8 @@ function nearest(px,py){
    const qx=ax+bx*t,qy=ay+by*t,d=Math.hypot(px-qx,py-qy);if(!best||d<best.d)best={d,i,t,ch:CH[i]+t*(CH[i+1]-CH[i]),la:LA[i]+t*(LA[i+1]-LA[i]),lo:LO[i]+t*(LO[i+1]-LO[i])}}
   if(pass===0&&best.d>1500&&(lo>0||hi<n-2)){lo=0;hi=n-2;best=null}else break}
  return best}
-const tick=()=>{$('tm').textContent=new Date().toLocaleTimeString('en-GB',{hour12:false,timeZone:'UTC'})};tick();setInterval(tick,1000);
+$('tlab').textContent='本地時間（'+Intl.DateTimeFormat().resolvedOptions().timeZone+'）';
+const tick=()=>{$('tm').textContent=new Date().toLocaleTimeString('en-GB',{hourCycle:'h23'})};tick();setInterval(tick,1000);
 const sm={base:null,t0:0,rate:0,corr:0,lastCh:null,lastTs:0};
 function disp(now){const dt=(now-sm.t0)/1000;return sm.base+sm.rate*Math.min(dt,2)+sm.corr*Math.exp(-dt/.6)}
 function fix(ch,ts){const now=performance.now();
@@ -125,7 +126,7 @@ function simTick(){const v=SPEEDS[demo.si]/3.6;demo.ch+=demo.dir*v;
 function setRun(on){if(on===demo.run)return;demo.run=on;
  if(on){simTick();if(demo.run)demo.timer=setInterval(simTick,1000)}else{clearInterval(demo.timer);sm.rate=0;ps.vx=0;ps.vy=0}
  setDemoBtn()}
-function setDemoBtn(){$('demo').textContent=!demo.on?'模擬':demo.run?'暫停模擬':'開始模擬'}
+function setDemoBtn(){$('demo').textContent=demo.on&&demo.run?'Demo Pause':'Demo Run';$('dr').textContent=demo.run?'暫停':'開始'}
 function setPanel(){$('dpanel').hidden=!demo.on;$('dN').setAttribute('aria-pressed',demo.dir<0);$('dS').setAttribute('aria-pressed',demo.dir>0);
  $('dv').textContent=SPEEDS[demo.si]+' km/h';$('dh').textContent=(demo.dir<0?'往北：里程數減少':'往南：里程數增加')+'。點地圖上的中心線，可從該點開始模擬。'}
 function enterDemo(){if(demo.on)return;const c=sm.lastCh!=null?sm.lastCh:100000;demo.on=true;simReset(c);simEmit(0);setDemoBtn();setPanel()}
@@ -157,11 +158,11 @@ setInterval(()=>{if(!lastRecv)return;const s=Math.round((Date.now()-lastRecv)/10
  $('s1').innerHTML=demo.on?'<span class="ok">模擬模式'+(demo.run?'':'（已暫停）')+'</span>':s>5?'<span class="bad">GPS 訊號中斷 '+s+' 秒</span>':'<span class="ok">GPS 正常</span>'},1000);
 map.on('dragstart',()=>{follow=false;$('fol').textContent='跟隨：關'});
 $('fol').onclick=()=>{follow=!follow;$('fol').textContent='跟隨：'+(follow?'開':'關');if(follow&&me.getLatLng().lat)map.panTo(me.getLatLng())};
-$('go').onclick=start;function openG(kind){if(!ps.base){$('s1').innerHTML='<span class="bad">尚未取得位置，請先按「定位」</span>';return}
+$('go').onclick=start;function openG(){if(!ps.base){$('s1').innerHTML='<span class="bad">尚未取得位置，請先按「定位」</span>';return}
  const[px,py]=pdisp(performance.now()),q=(py/KY+LAT0).toFixed(6)+','+(px/KX+120.9).toFixed(6);
- window.open(kind==='sv'?'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+q:'https://www.google.com/maps/search/?api=1&query='+q,'_blank','noopener')}
-$('gmap').onclick=()=>openG('map');$('sv').onclick=()=>openG('sv');
-$('demo').onclick=toggleDemo;$('dx').onclick=stopDemo;
+ window.open('https://www.google.com/maps/search/?api=1&query='+q,'_blank','noopener')}
+$('gmap').onclick=openG;
+$('demo').onclick=toggleDemo;$('dx').onclick=stopDemo;$('dr').onclick=()=>setRun(!demo.run);
 $('dN').onclick=()=>{demo.dir=-1;setPanel()};$('dS').onclick=()=>{demo.dir=1;setPanel()};
 $('dm').onclick=()=>{if(demo.si>0)demo.si--;setPanel()};$('dp').onclick=()=>{if(demo.si<SPEEDS.length-1)demo.si++;setPanel()};
 map.on('click',e=>{if(!demo.on)return;lastIdx=-1;const[x,y]=proj(e.latlng.lat,e.latlng.lng),q=nearest(x,y);simReset(q.ch);simEmit(demo.run?SPEEDS[demo.si]/3.6:0)});
