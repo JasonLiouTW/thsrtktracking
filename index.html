@@ -145,7 +145,7 @@ function update(la,lo,accu,speed,ts){
  if(v==null&&prev&&ts>prev.ts){const d=Math.hypot(x-prev.x,y-prev.y)/((ts-prev.ts)/1000);cand=sp==null?d:sp*.5+d*.5;v=cand}
  const kmh=v==null?0:v*3.6;
  if(q.d>MAXOFF||kmh>MAXKMH){
-  badMsg='定位無效：'+(q.d>MAXOFF?'偏離中心線 '+Math.round(q.d)+' m':'速度 '+Math.round(kmh)+' km/h')+'，維持上次有效資料';
+  badMsg='定位無效：'+(q.d>MAXOFF?'不在高鐵路線上，偏離 '+Math.round(q.d)+' m':'速度 '+Math.round(kmh)+' km/h')+'，維持上次有效資料';
   $('s1').innerHTML='<span class="bad">'+badMsg+'</span>';freeze();return}
  if(badMsg){badMsg='';$('s1').innerHTML='<span class="ok">GPS 正常</span>'}
  if(frozen){frozen=false;resetSmooth();v=(speed==null||isNaN(speed))?null:speed;cand=null}
