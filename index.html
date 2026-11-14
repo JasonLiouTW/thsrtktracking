@@ -39,7 +39,7 @@ button{flex:1;font:inherit;font-size:15px;color:var(--ink);background:#16242F;bo
 <body>
 <div id="app">
 <div id="mapwrap"><div id="map"></div>
-<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button><button id="demo">模擬</button></div>
+<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button><button id="gmap">地圖</button><button id="sv">街景</button><button id="demo">模擬</button></div>
 <div id="dpanel" hidden>
 <div class="drow"><button id="dN">往北</button><button id="dS">往南</button></div>
 <div class="drow"><button id="dm">−</button><span id="dv">120 km/h</span><button id="dp">＋</button></div>
@@ -157,7 +157,11 @@ setInterval(()=>{if(!lastRecv)return;const s=Math.round((Date.now()-lastRecv)/10
  $('s1').innerHTML=demo.on?'<span class="ok">模擬模式'+(demo.run?'':'（已暫停）')+'</span>':s>5?'<span class="bad">GPS 訊號中斷 '+s+' 秒</span>':'<span class="ok">GPS 正常</span>'},1000);
 map.on('dragstart',()=>{follow=false;$('fol').textContent='跟隨：關'});
 $('fol').onclick=()=>{follow=!follow;$('fol').textContent='跟隨：'+(follow?'開':'關');if(follow&&me.getLatLng().lat)map.panTo(me.getLatLng())};
-$('go').onclick=start;$('demo').onclick=toggleDemo;$('dx').onclick=stopDemo;
+$('go').onclick=start;function openG(kind){if(!ps.base){$('s1').innerHTML='<span class="bad">尚未取得位置，請先按「定位」</span>';return}
+ const[px,py]=pdisp(performance.now()),q=(py/KY+LAT0).toFixed(6)+','+(px/KX+120.9).toFixed(6);
+ window.open(kind==='sv'?'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+q:'https://www.google.com/maps/search/?api=1&query='+q,'_blank','noopener')}
+$('gmap').onclick=()=>openG('map');$('sv').onclick=()=>openG('sv');
+$('demo').onclick=toggleDemo;$('dx').onclick=stopDemo;
 $('dN').onclick=()=>{demo.dir=-1;setPanel()};$('dS').onclick=()=>{demo.dir=1;setPanel()};
 $('dm').onclick=()=>{if(demo.si>0)demo.si--;setPanel()};$('dp').onclick=()=>{if(demo.si<SPEEDS.length-1)demo.si++;setPanel()};
 map.on('click',e=>{if(!demo.on)return;lastIdx=-1;const[x,y]=proj(e.latlng.lat,e.latlng.lng),q=nearest(x,y);simReset(q.ch);simEmit(demo.run?SPEEDS[demo.si]/3.6:0)});
