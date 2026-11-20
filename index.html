@@ -18,7 +18,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family
 .lab{font-size:12px;color:var(--mute)}
 .val{font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
 #spd{font-size:54px}#spd small{font-size:16px;color:var(--mute);font-weight:600;margin-left:4px}
-#mil{font-size:44px;color:var(--hsr);letter-spacing:-1px;white-space:nowrap}
+#mil{font-size:min(40px,10vw);color:var(--hsr);letter-spacing:-1px;white-space:nowrap}
 #tm{font-size:26px}
 #st{font-size:13px;color:var(--mute);margin-top:8px;display:flex;justify-content:space-between;gap:8px}
 #st .bad{color:var(--bad)}#st .ok{color:var(--ok)}
@@ -32,6 +32,14 @@ button{flex:1;font:inherit;font-size:15px;color:var(--ink);background:#16242F;bo
 #dpanel button[aria-pressed="true"]{background:#1763E6;border-color:#1763E6}
 #dv{flex:2;text-align:center;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums}
 #dh{color:var(--mute);line-height:1.4;margin-bottom:6px}
+#cpanel{position:absolute;top:56px;right:10px;z-index:1000;width:226px;background:var(--bg);opacity:.96;border:1px solid var(--rule);border-radius:10px;padding:8px;font-size:13px}
+#cpanel[hidden]{display:none}
+#cpanel .drow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+#cpanel .cgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px}
+#cpanel button{flex:1;font-size:14px;padding:6px 4px;border-radius:8px;min-width:0}
+#cpanel button[aria-pressed="true"]{background:#1763E6;border-color:#1763E6}
+#cpanel .lab2{font-size:12px;color:var(--mute);margin:2px 0 4px}
+#ci{color:var(--mute);line-height:1.45;margin-bottom:6px;font-size:12px}
 .leaflet-tooltip.k{background:transparent;border:0;box-shadow:none;color:#fff;font-weight:700;text-shadow:0 0 3px #000,0 0 3px #000}
 .leaflet-tooltip.k:before{display:none}
 </style>
@@ -39,17 +47,27 @@ button{flex:1;font:inherit;font-size:15px;color:var(--ink);background:#16242F;bo
 <body>
 <div id="app">
 <div id="mapwrap"><div id="map"></div>
-<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button><button id="gmap">Google Map</button><button id="demo">Demo Run</button></div>
+<div id="fab"><button id="go">定位</button><button id="fol">跟隨：開</button><button id="carb">車廂補償</button><button id="gmap">Google Map</button><button id="demo">Demo Run</button></div>
 <div id="dpanel" hidden>
 <div class="drow"><button id="dN">往北</button><button id="dS">往南</button></div>
 <div class="drow"><button id="dm">−</button><span id="dv">120 km/h</span><button id="dp">＋</button></div>
 <div id="dh"></div>
 <div class="drow"><button id="dr">開始</button><button id="dx">結束模擬</button></div>
+</div>
+<div id="cpanel" hidden>
+<div class="lab2">車型</div>
+<div class="drow"><button id="m700">700T</button><button id="mN7">N700ST</button></div>
+<div class="lab2">頭尾車（1 車向南，12 車向北）</div>
+<div class="drow"><button id="c1">1 車</button><button id="c12">12 車</button></div>
+<div class="lab2">中間車</div>
+<div class="cgrid"><button id="c2">2</button><button id="c3">3</button><button id="c4">4</button><button id="c5">5</button><button id="c6">6</button><button id="c7">7</button><button id="c8">8</button><button id="c9">9</button><button id="c10">10</button><button id="c11">11</button></div>
+<div id="ci"></div>
+<div class="drow"><button id="coff">不補償</button><button id="cx">關閉</button></div>
 </div></div>
 <div id="panel">
 <div id="grid">
 <div><div class="lab">時速</div><div class="val" id="spd">--<small>km/h</small></div></div>
-<div><div class="lab">現在里程</div><div class="val" id="mil">--</div></div>
+<div><div class="lab" id="mlab">現在里程</div><div class="val" id="mil">--</div></div>
 <div style="grid-column:1/3"><div class="lab" id="tlab">本地時間</div><div class="val" id="tm">--:--:--</div></div>
 </div>
 <div id="st"><span id="s1">尚未開始</span><span id="s2"></span></div>
@@ -111,8 +129,19 @@ function posFix(x,y,ts){const now=performance.now();
  let sx=x,sy=y;
  if(ps.base){[sx,sy]=pdisp(now);const dt=(ts-ps.lts)/1000;if(dt>0){const vx=(x-ps.lx)/dt,vy=(y-ps.ly)/dt;if(Math.hypot(vx,vy)<150){ps.vx=ps.vx*.5+vx*.5;ps.vy=ps.vy*.5+vy*.5}}}else{ps.vx=0;ps.vy=0}
  ps.cx=sx-x;ps.cy=sy-y;ps.bx=x;ps.by=y;ps.base=true;ps.t0=now;ps.lx=x;ps.ly=y;ps.lts=ts}
-let lastTxt='';(function loop(){const now=performance.now();
- if(sm.base!=null){const s=fmt(disp(now));if(s!==lastTxt){lastTxt=s;$('mil').textContent=s}}
+const CARS={'700T':{end:26.75,mid:24.5},'N700ST':{end:27.35,mid:25}};
+const comp={model:'700T',car:null};let trainDir=0,noseOn=false;
+try{const s=JSON.parse(localStorage.getItem('hsrcomp')||'null');if(s&&CARS[s.model]){comp.model=s.model;comp.car=(s.car>=1&&s.car<=12)?s.car:null}}catch(e){}
+const carLen=(m,k)=>(k===1||k===12)?CARS[m].end:CARS[m].mid;
+function noseDist(m,k,d){let s=carLen(m,k)/2;if(d>0){for(let i=1;i<k;i++)s+=carLen(m,i)}else{for(let i=k+1;i<=12;i++)s+=carLen(m,i)}return s}
+const nose=L.circleMarker([0,0],{radius:6,color:'#fff',weight:2,fillColor:'#E11D48',fillOpacity:1});
+let lastTxt='',lastLab='';
+(function loop(){const now=performance.now();
+ if(sm.base!=null){const raw=disp(now),ok=comp.car!=null&&trainDir!==0,shown=ok?raw+trainDir*noseDist(comp.model,comp.car,trainDir):raw,s=fmt(shown);
+  if(s!==lastTxt){lastTxt=s;$('mil').textContent=s}
+  const lb=comp.car==null?'現在里程':ok?'車鼻里程（'+(trainDir>0?'往南':'往北')+'）':'現在里程（判斷行駛方向中）';
+  if(lb!==lastLab){lastLab=lb;$('mlab').textContent=lb}
+  if(ok){nose.setLatLng(llAt(Math.min(CH[n-1],Math.max(CH[0],shown))));if(!noseOn){nose.addTo(map);noseOn=true}}else if(noseOn){map.removeLayer(nose);noseOn=false}}
  if(ps.base&&!first){const[px,py]=pdisp(now),ll=[py/KY+LAT0,px/KX+120.9];me.setLatLng(ll);acc.setLatLng(ll);if(sm.base!=null)snap.setLatLng(llAt(disp(now)));if(follow)map.panTo(ll,{animate:false})}
  requestAnimationFrame(loop)})();
 const SPEEDS=[5,30,45,70,120,170,230,300,315];
@@ -145,7 +174,7 @@ function update(la,lo,accu,speed,ts){
  if(v==null&&prev&&ts>prev.ts){const d=Math.hypot(x-prev.x,y-prev.y)/((ts-prev.ts)/1000);cand=sp==null?d:sp*.5+d*.5;v=cand}
  const kmh=v==null?0:v*3.6;
  if(q.d>MAXOFF||kmh>MAXKMH){
-  badMsg='定位無效：'+(q.d>MAXOFF?'不在高鐵路線上，偏離 '+Math.round(q.d)+' m':'速度 '+Math.round(kmh)+' km/h')+'，維持上次有效資料';
+  badMsg='定位無效：'+(q.d>MAXOFF?'偏離中心線 '+Math.round(q.d)+' m':'速度 '+Math.round(kmh)+' km/h')+'，維持上次有效資料';
   $('s1').innerHTML='<span class="bad">'+badMsg+'</span>';freeze();return}
  if(badMsg){badMsg='';$('s1').innerHTML='<span class="ok">GPS 正常</span>'}
  if(frozen){frozen=false;resetSmooth();v=(speed==null||isNaN(speed))?null:speed;cand=null}
@@ -154,6 +183,7 @@ function update(la,lo,accu,speed,ts){
  prev={x,y,ts};
  if(v!=null)$('spd').innerHTML=Math.round(v*3.6)+'<small>km/h</small>';
  fix(q.ch,ts);posFix(x,y,ts);
+ if(v!=null&&v>1&&Math.abs(sm.rate)>.5){const nd=sm.rate>0?1:-1;if(nd!==trainDir){trainDir=nd;renderComp()}}
  const ll=[la,lo];me.setLatLng(ll);acc.setLatLng(ll).setRadius(accu||1);snap.setLatLng([q.la,q.lo]);
  if(!map.hasLayer(me)){acc.addTo(map);snap.addTo(map);me.addTo(map)}
  if(first){map.setView(ll,16);first=false}
@@ -180,7 +210,22 @@ $('go').onclick=start;function openG(){if(!ps.base){$('s1').innerHTML='<span cla
  const[px,py]=pdisp(performance.now()),q=(py/KY+LAT0).toFixed(6)+','+(px/KX+120.9).toFixed(6);
  window.open('https://www.google.com/maps/search/?api=1&query='+q,'_blank','noopener')}
 $('gmap').onclick=openG;
-$('demo').onclick=toggleDemo;$('dx').onclick=stopDemo;$('dr').onclick=()=>setRun(!demo.run);
+function saveComp(){try{localStorage.setItem('hsrcomp',JSON.stringify(comp))}catch(e){}}
+function renderComp(){
+ $('m700').setAttribute('aria-pressed',comp.model==='700T');$('mN7').setAttribute('aria-pressed',comp.model==='N700ST');
+ for(let k=1;k<=12;k++)$('c'+k).setAttribute('aria-pressed',comp.car===k);
+ $('carb').textContent=comp.car==null?'車廂補償':comp.model+'・'+comp.car+'車';
+ $('ci').textContent=comp.car==null?'未選車廂：顯示裝置所在位置的里程。裝置以車廂中央計算。':
+  trainDir===0?'已選 '+comp.model+' '+comp.car+' 車（車廂中央）。等待依里程變化判斷行駛方向。':
+  comp.model+' '+comp.car+' 車中央，往'+(trainDir>0?'南，車鼻為 1 車前端':'北，車鼻為 12 車前端')+'，里程補償 '+(trainDir*noseDist(comp.model,comp.car,trainDir)).toFixed(1)+' m'}
+function closeComp(){$('cpanel').hidden=true;$('dpanel').style.display=''}
+$('carb').onclick=()=>{const open=$('cpanel').hidden;$('cpanel').hidden=!open;$('dpanel').style.display=open?'none':'';renderComp()};
+$('cx').onclick=closeComp;
+$('coff').onclick=()=>{comp.car=null;saveComp();renderComp()};
+$('m700').onclick=()=>{comp.model='700T';saveComp();renderComp()};$('mN7').onclick=()=>{comp.model='N700ST';saveComp();renderComp()};
+for(let k=1;k<=12;k++)$('c'+k).onclick=()=>{comp.car=k;saveComp();renderComp()};
+renderComp();
+$('demo').onclick=()=>{closeComp();toggleDemo()};$('dx').onclick=stopDemo;$('dr').onclick=()=>setRun(!demo.run);
 $('dN').onclick=()=>{demo.dir=-1;setPanel()};$('dS').onclick=()=>{demo.dir=1;setPanel()};
 $('dm').onclick=()=>{if(demo.si>0)demo.si--;setPanel()};$('dp').onclick=()=>{if(demo.si<SPEEDS.length-1)demo.si++;setPanel()};
 map.on('click',e=>{if(!demo.on)return;lastIdx=-1;const[x,y]=proj(e.latlng.lat,e.latlng.lng),q=nearest(x,y);simReset(q.ch);simEmit(demo.run?SPEEDS[demo.si]/3.6:0)});
