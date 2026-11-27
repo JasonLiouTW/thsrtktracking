@@ -15,7 +15,7 @@ zh:{title:'高鐵里程定位',spd:'時速',mlab:'現在里程',tlab:z=>'本地�
  s2:(d,a)=>'距中心線 '+d+'　誤差 ±'+a+' m',
  err_perm:'定位權限被拒絕，請在瀏覽器設定允許位置',err_pos:'無法取得位置',err_nosupport:'此瀏覽器不支援定位',
  err_nopos:'尚未取得位置，請先按「定位」',err_load:'載入里程資料失敗，請確認 hsr-data.json 與其他檔案已一起上傳'},
-ja:{title:'台湾高鉄 キロ程測位',spd:'速度',mlab:'現在キロ程',tlab:z=>'現地時刻（'+z+'）',langbtn:'中文',
+ja:{title:'台湾高鉄 キロ程測位',spd:'速度',mlab:'現在キロ程',tlab:z=>'現地時刻（'+z+'）',langbtn:'English',
  go:'測位',go_on:'測位中',fol_on:'追従：ON',fol_off:'追従：OFF',carb:'車両補正',carb_sel:(m,c)=>m+'・'+c+'号車',
  gmap:'Google マップ',demo_run:'デモ走行',demo_pause:'デモ一時停止',
  dN:'北行',dS:'南行',dr_start:'開始',dr_pause:'一時停止',dx:'デモ終了',
@@ -29,12 +29,27 @@ ja:{title:'台湾高鉄 キロ程測位',spd:'速度',mlab:'現在キロ程',tla
  bad_off:d=>'測位無効：中心線から '+d+' m 離れています。直前の有効データを維持',bad_speed:v=>'測位無効：速度 '+v+' km/h。直前の有効データを維持',
  s2:(d,a)=>'中心線まで '+d+'　誤差 ±'+a+' m',
  err_perm:'位置情報の許可が拒否されました。ブラウザの設定で許可してください',err_pos:'位置を取得できません',err_nosupport:'このブラウザは位置情報に対応していません',
- err_nopos:'位置を取得できていません。先に「測位」を押してください',err_load:'キロ程データの読み込みに失敗しました。hsr-data.json などが同じ場所にあるか確認してください'}
+ err_nopos:'位置を取得できていません。先に「測位」を押してください',err_load:'キロ程データの読み込みに失敗しました。hsr-data.json などが同じ場所にあるか確認してください'},
+en:{title:'Taiwan HSR Mileage Locator',spd:'Speed',mlab:'Mileage',tlab:z=>'Local time ('+z+')',langbtn:'中文',
+ go:'Locate',go_on:'Locating',fol_on:'Follow: On',fol_off:'Follow: Off',carb:'Car offset',carb_sel:(m,c)=>m+' · Car '+c,
+ gmap:'Google Map',demo_run:'Demo Run',demo_pause:'Demo Pause',
+ dN:'Northbound',dS:'Southbound',dr_start:'Start',dr_pause:'Pause',dx:'End demo',
+ dh_n:'Northbound: mileage decreases. Tap the center line on the map to start from that point.',dh_s:'Southbound: mileage increases. Tap the center line on the map to start from that point.',
+ car_model:'Train type',car_ends:'End cars (car 1 faces south, car 12 faces north)',car_mid:'Middle cars',car_n:k=>'Car '+k,coff:'No offset',cx:'Close',
+ ci_none:'No car selected: showing the mileage of the device position. The device is assumed to be at the center of the car.',
+ ci_wait:(m,c)=>'Selected '+m+' car '+c+' (car center). Waiting to detect direction from the mileage trend.',
+ ci_dir:(m,c,d,o)=>m+' car '+c+' center, '+(d>0?'southbound, nose is the front of car 1':'northbound, nose is the front of car 12')+', mileage offset '+o+' m',
+ mlab_nose:d=>'Nose mileage ('+(d>0?'southbound':'northbound')+')',mlab_wait:'Mileage (detecting direction…)',
+ st_init:'Not started',st_ok:'GPS OK',st_lost:s=>'GPS signal lost for '+s+' s; holding last valid data',st_demo:'Demo mode',st_demo_paused:'Demo mode (paused)',
+ bad_off:d=>'Invalid fix: '+d+' m from the center line; holding last valid data',bad_speed:v=>'Invalid fix: speed '+v+' km/h; holding last valid data',
+ s2:(d,a)=>'Off center line '+d+'  accuracy ±'+a+' m',
+ err_perm:'Location permission denied. Please allow location in the browser settings.',err_pos:'Unable to get position',err_nosupport:'This browser does not support geolocation',
+ err_nopos:'No position yet. Tap "Locate" first.',err_load:'Failed to load mileage data. Make sure hsr-data.json and the other files were uploaded together.'}
 };
-let LANG=(()=>{try{const s=localStorage.getItem('hsrlang');if(I18N[s])return s}catch(e){}return(navigator.language||'').startsWith('ja')?'ja':'zh'})();
+let LANG=(()=>{try{const s=localStorage.getItem('hsrlang');if(I18N[s])return s}catch(e){}const l=(navigator.language||'').slice(0,2);return I18N[l]?l:'zh'})();
 const $=id=>document.getElementById(id);
 const t=(k,...a)=>{const v=I18N[LANG][k]??I18N.zh[k];return typeof v==='function'?v(...a):v};
 function applyStatic(){
- document.documentElement.lang=LANG==='ja'?'ja':'zh-Hant';document.title=t('title');
+ document.documentElement.lang={zh:'zh-Hant',ja:'ja',en:'en'}[LANG];document.title=t('title');
  document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));
  $('c1').textContent=t('car_n',1);$('c12').textContent=t('car_n',12)}

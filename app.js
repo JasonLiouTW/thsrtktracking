@@ -65,7 +65,7 @@ function openGoogleMap(){if(!ps.base){setStatus('bad','err_nopos');return}
 /* ---------- 按鈕 ---------- */
 function closeComp(){$('cpanel').hidden=true;$('dpanel').style.display=''}
 function wire(){
- $('go').onclick=start;$('gmap').onclick=openGoogleMap;$('lang').onclick=()=>setLang(LANG==='zh'?'ja':'zh');
+ $('go').onclick=start;$('gmap').onclick=openGoogleMap;$('lang').onclick=()=>{const ks=Object.keys(I18N);setLang(ks[(ks.indexOf(LANG)+1)%ks.length])};
  $('fol').onclick=()=>{follow=!follow;renderFol();if(follow&&me.getLatLng().lat)map.panTo(me.getLatLng())};
  map.on('dragstart',()=>{follow=false;renderFol()});
  // 車廂補償
